@@ -102,7 +102,7 @@ public class Ganancia {
 
 // PRENDA VALIDA
 // valida: que no le falte ningun atributo obligatorio
-public class PrendaValida{
+public class Prenda{
     private TipoPrenda tipoPrenda;
     private Material material;
     private Color colorPrincipal;
@@ -481,3 +481,129 @@ miCena = new ConTomate(miCena);
 // System.out.println(miCena.costo()); Imprime 1600
 // System.out.println(miCena.descripcion()); "Pizza de Muzza con Jamón con Jamón"
 
+
+
+//-------------------------------------QMP4-------------------------------------
+// --- recibir sugerencias segun el clima con ropa segun condiciones climaticas
+// --- conocer las referencias climaticas de BUENOS AIRES en un moment dado
+// --- cada tipoPrenda tiene un rango de temperatura para la que es adecuada
+// --- poder elegir distintos servicios externos facilmente
+//      - accuweather nos da una sdk (biblioteca) para usarlo
+
+// CONDICIONES CLIMATICAS
+public class Usuario {
+    // ... atributos ...
+    Guardarropa guardarropa;
+    MotorSugerencias motorSugerencias;
+    ConocedorDeClimaAdapter conocedor;
+
+    void conocerClima(LocalDate momento, String condicionClimaticaAConocer){
+        conocedor.conocerClima(momento, condicionClimaticaAConocer)
+    }
+}
+
+// necesitamos un adapter para usar la AccuWeatherAPI ya que este devuelve una lista de varios atributos climaticos para una ciudad, cosa que no nos sirve para nuestra interfaz --> nosotros necesitamos la temperatura para Buenos Aires (o para hacerlo + extensible otras ciudades)
+// interfaz saliente (a our sistema): ConocedorDelClima --> debemos crearla
+// interfaz entrante: accuweatherAPI
+// adapter: AccuWeatherAdapter --> implementa nuestra interfaz saliente (SIEMPRE) y overridea su metodo acomodando al metodo externo
+// PD: un adapter tambien permite DESACOPLARNOS de la api de accuweather (ya que si mi codigo se basa en este: el vendor cambia algo --> mi programa deja de funcionar)
+//      --> por esta razon no puedo delegarle toda la responsabilidad para crear la sugerencia a la api (siendo el crearSugerencias lo mas importante de mi programa)
+
+// interfaz saliente
+public interface ConocedorDeClima{
+// devlverlo del tipo EstadoClima favorece mucho la abstraccion --> mas cohesion para mi sistema (antes que devolverlo del tipo list,map...)
+    EstadoClima cononcerClima(String direccion);
+}
+
+// interfaz entrante dada (a la que necesitamos conectarnos)
+public interface AccuWeatherAPI{
+    List<Map<String,Object>> getWeather(String city);
+}
+
+public class EstadoClima{
+    private BigDecimal temperatura;
+    private BigDecimal humedad;
+    // se podrian agregar otros ...
+}
+
+// adapter
+// cada adapter implementa la interfaz saliente (lo hace ver como subclases y permite poder intercambiar entre ellas)
+// importante: nunca podemos hacer que la interfaz externa implemente una nuestra!!!
+// PD: si el user quiere cambiar de usar ACCU a otro, tan solo cambia su atributo adapter por el adaptador de otra interfaz --> se debe desarrollar otra clase adapter que transforme los datos para ese servicio
+
+// ejemplo para accuweather
+public class AccuWeatherAdapter implements ConocedorDeClima{
+    // instancio una
+    AccuWeatherAPI apiClima = new AccuWeatherAPI();
+    
+    @Override
+    EstadoClima conocerClima(String direccion){
+        // 1ero CONSULTO A LA API
+        Map<String, Object> clima = consultarApi(direccion);
+        // 2do TRANSFORMO DATOS Y LOS DEVUELVO
+        return new EstadoClima(
+            BigDecimal.ValueOf(clima.get("Temperatura")); // obtenemos la temperatura --> aca se deberia chequear cada campo que marca la api (si esta en celsius y sino hacer una cnversion, etc)
+            BigDecimal.ValueOf(clima.get("Humedad")); // obtego la humedad
+        )
+    }
+
+// se puede implementar un try & catch por si falla
+    Map<String, Object> conultarApi(String direccion){
+        try {
+            return this.apiClima.getWeather(direccion).get(0);
+        }
+        catch {
+            // lanzo una excepcion de mi dominio y hago lo que tenga que hacer para devolver un valor ok
+        }
+    }
+}
+
+// SUGERENCIAS SEGUN TEMPERATURA
+public class Prenda{
+    private TipoPrenda tipoPrenda;
+    // ... atributos ...
+    private BigDecimal temperaturaAdecuadaComoMaxima;
+
+    public Bool esAptaPara(BigDecimal temperaturaActual){
+        return this.temperaturaAdecuadaComoMaxima >= tempreaturaActual
+    }
+}
+
+public class Usuario{
+    private String direccion;
+    // el problema mas dificil es obtener la temperatura (en el adapter), filtrar las prendas es secundario
+    // no hacia falta complicarse tanto devolviendo una condicion -- solo pide segun TEMPERATURA ---> esta solucion ESTA MAL
+    public Sugerencia crearSugerenciaSegunClima() {
+        List<Map<String,Object>> condiciones = conocerClima(this.direccion);
+        return this.motorSugerencias.crearSugerenciaSegunClima(this.guardarropa, condiciones);
+    }
+    
+    // sugerencias SEGUN TEMPERATURA --> es un int ---> esta BIEN
+    public Sugerencia crearSugerenciaSegunClima() {
+    EstadoClima clima conocerClima();
+    return this.motorSugerencias.crearSugerenciaSegunClima(this.guardarropa, clima.getTemperatura());
+    }
+}
+
+// agrego el metodo al motor sugerencias
+public interface MotorSugerencias {
+    // le paso como atributo las condiciones y luego cada motor lo filtra y luego como lo hace
+    Sugerencia crearSugerenciaSegunClima(Guardarropa guardarropa, BigDecimal temperatura){
+        
+    }
+}
+
+public abstract class MotorSugerencias {
+    // método principal que ahora filtra por temperatura
+    public Sugerencia crearSugerenciaSegunClima(Guardarropa guardarropa, BigDecimal temperatura) {
+        List<Prenda> superioresAptas = filtrarPrendas(guardarropa.getPrendasSuperiores(), temperatura);
+        List<Prenda> inferioresAptas = filtrarPrendas(guardarropa.getPrendasInferiores(), temperatura);
+        List<Prenda> calzadoAptos = filtrarPrendas(guardarropa.getPrendasCalzado(), temperatura);
+    }
+
+    private List<Prenda> filtrarPrendas(List<Prenda> prendas, BigDecimal temperatura) {
+        return prendas.filter(prenda -> prenda.esAptaPara(temperatura))
+    }
+}
+
+// Ver cualidades de diseño --> sirven para justificar
