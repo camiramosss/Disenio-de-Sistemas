@@ -607,3 +607,235 @@ public abstract class MotorSugerencias {
 }
 
 // Ver cualidades de diseño --> sirven para justificar
+
+
+// ----- Reificar comportamiento (del apunte)
+// VENTAJAS:
+// Almacenar acciones pendientes hasta que deban ser ejecutadas
+// Aprobación y rechazo de acciones antes de ejecutarlas
+// Deshacer acciones realizadas
+// Desacoplar la ejecución del flujo de control (asincronismo)
+
+
+// ----- Ejemplo
+// requerimientos (que fueron escalando)
+// 1. Como tenedor de tarjetas de crédito, quiero poder ‘programar’ los pagos que se realicen de trasnoche, para que sean impactados al dia siguiente
+// 2. Como tenedor de tarjetas de crédito, quiero poder elegir el monto a pagar para poder cubrir parte de la deuda -evitando que genere intereses- sin quedarme sin saldo en la cuenta
+// 3. Como tenedor de tarjetas de crédito, quiero poder realizar compras de trasnoche y que estas sean impactados al dia siguiente
+// inicialmente contabamos con una clase Cuenta, una clase Tarjeta y un enum Operador
+
+
+enum Operador {
+ VISA,
+ AMEX,
+ MASTER
+}
+
+class Tarjeta {
+  Operador operador;
+  Double deuda;
+
+  void pagar(Double monto){
+    deuda -= monto;
+  }
+
+  void comprarPor(Double monto){
+    deuda += monto;
+  }
+}
+
+class Cuenta {
+  String cbu;
+  Double saldo;
+  List<Tarjeta> tarjetas;
+  // esta lista permite guardarlas en el tiempo para aceptarlas/rechazarlas cuando se quiera
+  List<Solicitud> solicitudesPendientes;
+
+// OPERACIONES disponibles que tiene una persona con cuenta:
+  void pagarTarjeta(Tarjeta tarjeta, Double montoAPagar){
+    if(esHorarioDeClearing()){
+      agregarSolicitud(new Pago(tarjeta,montoAPagar))
+    }else{
+        impactarPago(tarjeta, montoAPagar)
+    }
+  }
+
+  void procesarCompra(Tarjeta tarjeta, Monto monto){
+    if(esHorarioDeClearing()){
+      agregarSolicitud(new Compra(tarjeta,monto))
+    }else{
+        tarjeta.pagar(monto);
+    }
+  }
+
+// operaciones ASINCRONAS disponibles (cuando se decida, se las llama: se confirman las que habiamos programado):
+    void efectivizarSolicitud(SolicitudPago solicitud) {
+        quitarSolicitudPago(solicitud);
+        solicitud.aplicarEn(this);
+  }
+
+    void impactarPago(Tarjeta tarjeta, Double montoAPagar) {
+    Double montoPosible = Math.min(this.saldo, montoAPagar);
+    tarjeta.pagar(montoPosible)
+    saldo -= montoPosible
+  }
+}
+
+
+// SOLICITUDES:
+// al ser interface: permite diferentes solicitudes con diferentes parametros (permite polimorfismo)
+// aplicar() method: que se refiere a pagar() o comprar() --> siempre esta en estas clases "cosificadas" que permiten acciones diferidas en el tiempo
+// PD: de casualidad las 2 solicitudes del problema tienen 2 parametros
+interface Solicitud {
+  void aplicarEn(Cuenta cuenta);
+}
+
+// de pago
+class Pago implements Solicitud{
+  Tarjeta tarjeta;
+  Double monto;
+
+  aplicarEn(Cuenta cuenta){
+    cuenta.impactarPago(this.getTarjeta(), this.getMonto())
+  }
+}
+
+// de compra
+class Compra implements Solicitud{
+  Tarjeta tarjeta;
+  Double monto;
+
+  aplicarEn(Cuenta cuenta){
+    this.getTarjeta().pagar(this.getMonto())
+  }
+}
+
+// COMMAND PATHERN
+// plasma estas ideas de asincronismo/reificar comportamiento
+// convierte una solicitud o una acción en un objeto independiente
+
+// estructura:
+// 1)! Command: interfaz o clase abstracta que define el método de ejecución (apply() o execute()) --> Solicitud
+// 2)! Concrete Command: clase que implementa al command. Tiene una referencia al reciever, y al hacer apply() llama a uno de sus metodos --> SolcitudPago, SolicitudCompra
+// 3)! Receiver: contiene la lógica de negocio, sabe en serio cómo hacer su tarea --> Cuenta, Tarjeta (tarea que saben hacer: impactarPago(), pagar())
+// 4)! Client: crea el objeto Concrete Command y le asigna su Receiver --> Cuenta (deberia ser una AppBancaria)
+// 5) Invoker: se encarga de ejecutar la solicitud, guardando una referencia al command y sabe cuando dispararla --> tambien la Cuenta (deberia ser un GestorSolicitudes)
+
+// PD: Cuenta --> god object
+
+
+
+//-------------------------------------QueMePongo5-------------------------------------
+// --- manejar varios guardarropas para separar mi ropa segun criterios
+// --- crear guardarropas compartidos
+// --- propuestas de agregado/eliminación de prendas
+// --- ver propuestas y poder aceptarlas/rechazarlas
+// --- poder deshacer las propuestas aceptadas --> para esto necesito las propuestas aceptadas
+
+
+// manejo de varios guardarropas --> se arman segun criterio del user (cada uno elige lo que pone o no en ropadeVeranoGuardarropa, es subjetivo, no puedo filtrar)
+public class Usuario {
+    // ... atributos ...
+    List<Guardarropa> guardarropas;
+}
+
+// el guardarropa compartido no necesita tener la lista de usuarios --> para que?
+// simplemente es un guardarropas más, que en lugar de conocerlo una sola persona, lo conocen varias
+// se pueden compartir
+class Guardarropa {
+    List<Propuesta> propuestasRecibidas;
+    // List<Propuesta> propuestasAceptadas; --> en lugar de esto, se podria agregar un atributo booleano a Propuesta para saber si fue aceptada o no y de ahi filtrar estas / un enum para su estado
+
+  void compatirCon(usuario) {
+    usuario.agregarGuardarropa(this);
+  }
+
+  public List<Propuesta> getPropuestasPendientes() {
+        return this.propuestas.stream()
+            .filter(p -> p.getEstado() == Estado.PENDIENTE)
+            .collect(Collectors.toList());
+    }
+
+// para las solicitudes
+  void recibirPropuesta(Propuesta propuesta) {
+    this.propuestasRecibidas.add(propuesta);
+  }
+}
+
+// despues el usuario hace:
+usuario.agregarGuardarropa(guardarropaCompartido);
+
+
+// PROPUESTAS
+// en este caso
+// command: Propuesta (method execute(): aceptar() y unexecute(): deshacer()))
+// abstract command: PropuestaEliminacion, PropuestaAgregacion (referencia al guardarropa, al sobreescribir execute() llama a alguno de sus metodos) (y tambien conoce a la prenda)
+// reciever: guardarropa --> sabe agregarPrenda, eliminarPrenda
+// client/invoker: Usuario --> crea una solicitud para tal guardarropa (le asigna este guardarropa)
+
+// PD: template method para aceptar/rechazar ya que comparten la asignacion del estado
+// tambien puedo no repetir el parametro Prenda, ambos lo tienen
+public abstract class Propuesta {
+    Prenda prenda;
+    private Estado estado;
+    void aceptar(Guardarropa guardarropa) {
+        this.estado = Estado.ACEPTADA;
+        applyLogicaDeAceptacion(guardarropa);
+    }
+
+    void rechazar(Guardarropa guardarropa) {
+    this.estado = Estado.RECHAZADA;
+    }
+
+    void deshacer(Guardarropa guardarropa) {
+        this.estado = Estado.PENDIENTE;
+        applyLogicaDeDeshacer(guardarropa);
+    };
+}
+
+public enum Estado {
+    PENDIENTE, // apenas se crea una solicitud
+    ACEPTADA,
+    RECHAZADA
+}
+// PD: para el estado, decidi hacer un enum ya que en un futuro se podria pedir deshacer una propuesta rechazada, o simplemente verlas --> el historial es la lista de solicitudes misma, nunca las borro de esa lista
+// si hubiera hecho un booleano fueAceptada() : la distinción entre "Pendiente" y "Rechazada" se pierde
+
+// abstract command
+// pd: la propuesta de aceptacion, no necesita tener al guardarropa como atributo, ya que:
+//      - EL GUARDARROPA es quien conoce a las solicitudes, si hacemos que la relacion sea bidireccional, creamos una referencia circular
+//      - el usuario sabe que prenda proponer, pero puede cambiar el guardarropa al que se la propone tranquilamente
+// el "QUE" se hace (se propone una PRENDA) --> va como atributo
+// el a "QUIEN" o "DONDE" se lo hace (a un GUARDARROPA) --> va como parametro (del apply())
+
+public class PropuestaAgregacion implements Propuesta {
+    void applyLogicaDeAceptacion(Guardarropa guardarropa) {
+        guardarropa.agregarPrenda(prenda);
+    }
+    void applyLogicaDeDeshacer(Guardarropa guardarropa) {
+        guardarropa.eliminarPrenda(prenda);
+    }
+}
+
+// abstract command
+public class PropuestaEliminacion implements Propuesta {
+    void applyLogicaDeAceptacion(Guardarropa guardarropa) {
+        guardarropa.eliminarPrenda(prenda);
+    }
+    void applyLogicaDeDeshacer(Guardarropa guardarropa) {
+        guardarropa.agregarPrenda(prenda);
+    }
+}
+
+// metodos en el guardarropa --> correspondientes al reciever
+public class Guardarropa {
+    // ... atributos ...
+    void agregarPrenda(Prenda prenda) {
+        this.getPrendas().add(prenda);
+    }
+
+    void eliminarPrenda(Prenda prenda) {
+        this.getPrendas().remove(prenda);
+    }
+}
+
