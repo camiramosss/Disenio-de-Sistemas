@@ -495,7 +495,7 @@ public class Usuario {
     // ... atributos ...
     Guardarropa guardarropa;
     MotorSugerencias motorSugerencias;
-    ConocedorDeClimaAdapter conocedor;
+    ConocedorDeClima conocedor;
 
     void conocerClima(LocalDate momento, String condicionClimaticaAConocer){
         conocedor.conocerClima(momento, condicionClimaticaAConocer)
@@ -846,7 +846,7 @@ public class Guardarropa {
 // --- disparar el calculo de sugerencias diarias para todos los users (a principio de dia)
 //     - necesitamos un proceso que actualice la lista de estas sugerencias
 // --- ver el historial de alertas meteorologicas
-// --- al haber alguna alerta, se debe actualizara la sugerencia diaria
+// --- al haber alguna alerta, se debe actualizar la sugerencia diaria
 // --- ante alerta metereologica
 //     - se debe sugerir llevar paraguas --> ante alerta de tormenta
 //     - se debe sugerir evitar salir en auto --> ante alerta de granizo
@@ -862,99 +862,136 @@ class Usuario {
   }
 }
 
-// para que el empleado pueda calcular las sugerencias diaras (cuando quieira, no importa si no es la mañana):
-class Empleado {
-// ... atributos ...
-  List<Usuario> usuarios
+// si modelara una lista de usuarios en el empleado, estaria mal --> cada empleado tendria una lista y ademas se va de nuestro dominio
+class RepositorioUsuarios {
+    List <Usuario> usuarios
 
-  calcularSugerenciasDiarias() {
-    usuarios.forEach(usuario -> usuario.calcularSugerenciaDiaria());
-  }
-
+    List <Usuario> getUsuarios() {
+        return this.usuarios
+    }
 }
 
-// adapter acomodado a los nuevos requuerimientos
-public interface ConocedorDeClima{
-    EstadoClima cononcerClima(String direccion);
-    AlertaMeteorologica conocerAlertaMeteorologica(String direccion);
+// clase que se dedica a generar las sugerencias diarias
+// PD: como SOLO tengo el metodo calcularSugDiarias que referencia repo, se podria meter en el repositorio:
+//  - pierdo algo de abstraccion
+//  - gano al no complicarme tanto creando un objeto nuevo
+//  - si en un futuro necesito mas acciones que las sugerencias diarias, estaria mejor esta clase
+class AsesorImagen {
+    RepositorioUsuarios repositorio
+
+    void calcularSugerenciasDiarias() {
+        repositorio.getUsuarios().forEach(user -> user.calcularSugerenciaDiaria)
+    }
 }
 
-public interface AccuWeatherAPI{
-    List<Map<String,Object>> getWeather(String city);
-    List<Map<String,Object>> getAlerts(String city);
+// ALERTAS
+public enum AlertaMeteorologica {
+    TORMENTA, GRANIZO
 }
 
-public class AlertaMeteorologica {
-    private String tipoAlerta;
+// interfaz saliente a nuestro sistema
+public class conocedorDeAlertas {
+    String direccion;
+    List<AlertaMeteorologica> conocerAlertas(direccion);
 }
 
-public class AccuWeatherAdapter implements ConocedorDeClima{
+// adapter
+public class AccuWeatherAlertaAdapter implements conocedorDeAlertas {
     AccuWeatherAPI apiClima = new AccuWeatherAPI();
     
+private Map<String, AlertaMeteorologica> diccionarioAlertas;
+
+    public AccuWeatherAlertaAdapter() {
+        this.apiClima = new AccuWeatherAPI();
+        this.diccionarioAlertas = new HashMap<>();
+        // Mapeamos lo que dice la API a lo que entiende nuestro sistema
+        diccionarioAlertas.put("STORM", AlertaMeteorologica.TORMENTA);
+        diccionarioAlertas.put("HEAVY_RAIN", AlertaMeteorologica.TORMENTA); // Mapeamos dos cosas a una
+        diccionarioAlertas.put("HAIL", AlertaMeteorologica.GRANIZO);
+    }
+
     @Override
-    AlertaMeteorologica conocerAlertaMeteorologica(String direccion){
-        Map<String, Object> alerta = consultarApi(direccion);
-        return new AlertaMeteorologica(alerta.get("TipoAlerta"));
-    }
+    public List<AlertaMeteorologica> conocerAlertas(String direccion){
+        // La API devuelve algo tipo: ["STORM", "HUMIDITY"]
+        List<String> alertasApi = this.consultarApi(direccion); 
 
-    Map<String, Object> conultarApi(String direccion){
-        try {
-            return this.apiClima.getAlerts(direccion).get(0);
+        // Transformar
+        return alertasApi
+            // Buscamos la traducción en el mapa
+            .map(alertaString -> diccionarioAlertas.get(alertaString)) 
+            // Filtramos los nulos (por si la API manda algo que no nos importa, ej: "HUMIDITY")
+            .filter(Objects::nonNull) 
+    }
+    
+    Map<String, Object> consultarApi(String direccion){
+        try{
+            this.apiAlertas.getAlertas(direccion)
         }
-        catch {
-        }
-    }
-}
-
-// observer
-// - permite añadir y sacar acciones dinamicamente
-// - ademas, soportar nuevas acciones a futuro
-
-// observado
-public abstract class MotorSugerencias {
-    // lista de interesados a escuchar
-    List<InteresadosEnAlertas> interesadosEnAlertas;
-
-    // metodos para añadir/sacar interesados facilmente
-    agregarInteresadoEnAlertas(InteresadosEnAlertas interesado) {
-        this.interesadosEnAlertas.add(interesado);
-    }
-    sacarInteresadoEnAlertas(InteresadosEnAlertas interesado) {
-        this.interesadosEnAlertas.remove(interesado);
-    }
-
-    // metodo para notificar a los interesados
-    notificarInteresados(AlertaMeteorologica alerta) {
-        this.getInteresadosEnAlertas().forEach(interesado -> interesado.recibirAlerta(alerta));
-    }
-}
-
-// observadores
-public interface InteresadosEnAlertas {
-    void recibirAlerta(AlertaMeteorologica alerta);
-}
-
-public class AlertaPorParaguas implements InteresadosEnAlertas {
-    @Override
-    void recibirAlerta(AlertaMeteorologica alerta) {
-        if (alerta.getTipoAlerta().equals("Tormenta")) {
-            avisoDeLlevarParaguas();
+        catch{
+            // excepcion y logica que haga lo que se deba cuando ocurre error
         }
     }
 }
 
-public class AlertaPorEvitarSalirEnAuto implements InteresadosEnAlertas {
-    @Override
-    void recibirAlerta(AlertaMeteorologica alerta) {
-        if (alerta.getTipoAlerta().equals("Granizo")) {
-            avisoDeEvitarSalirEnAuto();
-        }
+// registro de alertas --> las ejecuta periodicamente
+// no lo puede hacer el repositorio porque este se encarga solamente de guardar y recuperar datos (CRUD)
+class RegistroAlertas {
+    List<AlertaMeteorologica> alertasActuales;
+    RepositorioUsuarios repositorio;
+    
+    void actualizarAlertas() {
+		this.alertasActuales = new ServicioMeteorologicoAccuWeather().getAlertasMeteorologicas();
+        this.getRepositorio().getUsuarios().forEach(user -> user.crearSugerenciaSegunClima())
+        this.getRepositorio().getUsuarios().forEach(user -> user.reaccionarAnteAlertas(alertasActuales))
+	 }
+}
+
+// cada vez que se actualizan las alertas, se disparan acciones:
+// interfaces salientes para los servicios externos (por ahora nos despreocupamos por la traduccion)
+interface Correo{
+  public enviarCorreo(Usuario user, String cuerpo);
+}
+
+interface Notificador{
+  public notificar(String mensaje);
+}
+
+// el user conoce sus acciones configurables
+class Usuario {
+    //...atributos...
+    List<AccionConfigurable> accionesConfigurables;
+
+    // puede agregar/sacar cuando desee
+    void agregarAccion(AccionConfigurable accion) {
+        this.getAccionesConfigurables().add(accion)
+    }
+    void sacarAccion(AccionConfigurable accion) {
+        this.gerAccionesConfigurables().remove(accion)
+    }
+
+    void reaccionarAnteAlertas(List<AlertaMeteorologica> alertas) {
+        this.getAccionesConfigurables().forEach(accion -> accion.reaccionar(this, alertas))
     }
 }
 
-public class EnvioDeMail implements InteresadosEnAlertas {
-    @Override
-    void recibirAlerta(AlertaMeteorologica alerta) {
-        enviarMailNotificandoAlerta(alerta);
+// acciones configurables --> observadores
+public interface AccionConfigurable {
+    void reaccionar(Usuario user, List<AlertaMeteorologica> alertas)
+}
+
+public class MandarMail extends AccionConfigurable {
+    @Override reaccionar(Usuario user, List<AlertaMeteorologica> alertas){
+        new Correo().enviarCorreo(user,alertas)
     }
 }
+
+// para matchear la alerta con el mensaje, usamos un diccionario, ya que si usamos if queda un type test medio feo y ademas a nivel interfaz web no se podria implementar
+public class NotificadorAnteAlertas implements AccionConfigurable {
+  Map<AlertaMeteorologica, String> mensajes = {...}
+
+	reaccionar(user, alertas) {
+    alertas.forEach(alerta -> new Notificador().notificar(mensajes.get(alerta)))
+	}
+}
+
+
