@@ -897,7 +897,7 @@ public class conocedorDeAlertas {
 
 // adapter
 public class AccuWeatherAlertaAdapter implements conocedorDeAlertas {
-    AccuWeatherAPI apiClima = new AccuWeatherAPI();
+    AccuWeatherAPI apiClima
     
 private Map<String, AlertaMeteorologica> diccionarioAlertas;
 
@@ -995,3 +995,67 @@ public class NotificadorAnteAlertas implements AccionConfigurable {
 }
 
 
+
+//-------------------------------------QueMePongo6 PUNTO BONUS-------------------------------------
+// palabras sabias de franco:
+// planificacion interna: necesita tener mi aplicacion corriendo siempre para que funciona
+// - si se cae mi proceso/app/servidor estas acciones se pierden
+// ---> conviene usarla para casos en los que se necesita tener corriendo un proceso en un periodo corto y que si se cae no pase nada
+
+// planificacion externa: es externo a mi app, se encarga el so
+// - no necesita tener corriendo mi app
+// ---> conviene usarlo para tareas que queremos que se sincronicen adecuadamente y ademas son mas faciles de escalar (2do parcial)
+
+// requerimientos
+// Como administradore de QueMePongo, quiero que las sugerencias diarias se calculen automáticamente sin que un empleado necesite disparar esta acción manualmente
+// Como administradore de QueMePongo, quiero que las alertas se publiquen en el sitio automáticamente sin que un empleado necesite disparar esta acción manualmente
+
+// necesidades para planificacion externa:
+// - Metodo que necesita ser ejecutado periodicamente
+// - Main()
+// - Comando del CronTab (corre el main)
+
+
+// esto pasaria si ambas funciones corrieran con la misma frecuencia
+// 1)
+public class QueMePongoApp{
+    public static void main(String[],Args[]){
+        // instancio las clases que sean necesarias para correr mi metodo (si el repo fuera un singleton no hace falta)
+        RepositorioUsuarios repo = new RepositorioUsuarios()
+        AsesorImagen asesorImagen = new AsesorImagen()
+        RegistroAlertas registro = new RegistroAlertas();
+        
+        // corro los metodos
+        asesorImagen.calcularSugerenciasDiarias(repo);
+        registro.actulizarAlertas();
+    }
+}
+// 2) despues de esto deberia cambiar en el pom.xml el assembly plugin agregandole el nombre de mi clase que contiene el main()
+// 3) corro mi app con mvn verify y se genera un .jar
+// 4) creo un crontab en mi consola (del sisitema operativo) y le paso para que corra el .jar
+//   min / hour / dayofmonth / month / dayofweek / comando
+    
+//    0 6 * * * java -jar /home/user/quemepongo.jar
+//    --> corre todos los dias a las 6 am
+
+
+// pero como quiero que una tarea se ejecute diariamente, y otra cada 30 min --> debo hacer 2 main
+public class GeneradorSugerencias {
+    public static void main(String[] args) {
+        RepositorioUsuarios repo = new RepositorioUsuarios();
+        AsesorImagen asesorImagen = new AsesorImagen();
+        
+        asesorImagen.calcularSugerenciasDiarias(repo);
+    }
+}
+// cron: 0 6 * * * java -jar /home/user/quemepongo.jar quemepongo.main.GeneradorSugerencias --> diariamente a las 6 am
+
+public class ActualizadorAlertas {
+    public static void main(String[] args) {
+        RepositorioUsuarios repo = new RepositorioUsuarios(); 
+        RegistroAlertas registro = new RegistroAlertas();
+ 
+        registro.actualizarAlertas(repo); 
+    }
+}
+// cron: */30 * * * * java -jar /home/user/quemepongo.jar quemepongo.main.ActualizadorAlertas --> cada 30 min
