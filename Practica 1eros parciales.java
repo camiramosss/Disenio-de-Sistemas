@@ -1059,3 +1059,232 @@ public class ActualizadorAlertas {
     }
 }
 // cron: */30 * * * * java -jar /home/user/quemepongo.jar quemepongo.main.ActualizadorAlertas --> cada 30 min
+
+
+
+//-------------------------------------PARCIALES-------------------------------------
+// https://docs.google.com/document/d/1-Qpv38kB29lNuzIi88TkTg4LGbO_iNijoVesZyvG5wM/edit?usp=sharing
+
+public class Alumno {
+    String nombre;
+    String email;
+}
+
+public class Curso{
+    List<Alumno> alumnos;
+    List<Grupo> grupos;
+    Int tamanioGrupos
+
+    void armarGrupos()
+
+    List<Grupo> getGruposCerrados(){
+    return this.grupos.filter(g -> g.estaCerrado())
+    }
+}
+
+public class Grupo {
+    private String nombre;
+    private List<Alumno> integrantes;
+    private List<Solicitud> solicitudes; // command
+    private List<AccionAsociada> accionesAsociadas; // observers
+    private boolean estaCerrado;
+
+// logica de COMMAND (solicitudes)
+    public void recibirSolicitud(Solicitud solicitud) {
+        this.solicitudesPendientes.add(solicitud);
+    }
+
+    public void aprobarSolicitud(Solicitud solicitud) {
+        solicitud.serAplicadaEn(this); 
+        this.solicitudesPendientes.remove(solicitud);
+    }
+
+// logica de OBSERVERS (acciones asignadas)
+    public void agregarIntegrante(Alumno alumno) {
+        this.integrantes.add(alumno);
+        this.notificarAlta(alumno);
+    }
+
+    public void removerIntegrante(Alumno alumno) {
+        this.integrantes.remove(alumno);
+        this.notificarBaja(alumno);
+    }
+
+    // métodos que avisan a las AccionesAsociadas
+    private void notificarAlta(Alumno alumno) {
+        this.accionesAsociadas.forEach(accion -> accion.notificarAlta(this, alumno));
+    }
+
+    private void notificarBaja(Alumno alumno) {
+        this.accionesAsociadas.forEach(accion -> accion.notificarBaja(this, alumno));
+    }
+
+    public void agregarAccion(AccionAsociada accion) {
+        this.accionesAsociadas.add(accion);
+    } // lo mismo para sacar la accion
+
+
+    // para ultimo punto
+    void habilitarEntrega(entrega){
+    this.entregashabilitadas.add(entrega)
+    new EnviarMail().notificarEntrega(this, entrega)
+    }
+
+}
+
+
+// COMMAND
+public interface Solicitud {
+    void serAplicadaEn(Grupo grupo);
+}
+
+public class AltaAlumno implements Solicitud {
+    private Alumno alumno;
+
+    @Override
+    public void serAplicadaEn(Grupo grupo) {
+        grupo.agregarIntegrante(this.alumno);
+    }
+}
+
+public class BajaAlumno implements Solicitud {
+    private Alumno alumno;
+
+    @Override
+    public void serAplicadoEn(Grupo grupo) {
+        grupo.removerIntegrante(this.alumno);
+    }
+}
+
+// OBSERVER
+public interface AccionAsociada {
+    void notificarAlta(Grupo grupo, Alumno alumno);
+    void notificarBaja(Grupo grupo, Alumno alumno);
+    void notificarCierre(Grupo grupo, Alumno alumno);
+}
+
+// estas clases hacen de OBSERVADORES y ademas de ADAPTERS para las librerías externa
+public class CrearRepositorio implements AccionAsociada {
+    private GuitabSDK guitab; 
+
+    @Override
+    public void notificarAlta(Grupo grupo, Alumno alumno) {
+        guitab.addMember(grupo.getNombre(), alumno.getEmail());
+    }
+
+    @Override
+    public void notificarBaja(Grupo grupo, Alumno alumno) {
+        guitab.removeMember(grupo.getNombre(), alumno.getEmail());
+    }
+
+    @Override
+    notificarCierre(grupo){
+    new GuitabSDK().crearRepoConAccessos("repo_" + grupo.getNombre(),grupo.getUsernames())
+    }
+
+}
+
+public class DarPermisosRepositorio implements AccionAsociada {
+    private GuitabSDK guitab; 
+
+    // chequeo que el grupo no este cerrado
+    @Override
+    public void notificarAlta(Grupo grupo, Alumno alumno) {
+        if(grupo.estaCerrado()){
+        new GuitabSDK().darAcceso("repo_" + grupo.getNombre(),alumno.getGitUsername())
+        }
+    }
+
+    @Override
+    public void notificarBaja(Grupo grupo, Alumno alumno) {
+    }
+}
+
+public class SacarPermisosRepositorio implements AccionAsociada {
+    private GuitabSDK guitab; 
+
+    @Override
+    public void notificarAlta(Grupo grupo, Alumno alumno) {
+        if(grupo.estaCerrado()){
+        new GuitabSDK().quitarAcceso("repo_" + grupo.getNombre(),alumno.getGitUsername())
+        }
+    }
+
+    @Override
+    public void notificarBaja(Grupo grupo, Alumno alumno) {
+    }
+}
+
+public class NotificarAlumnos implements AccionAsociada {
+    private MailSender mailSender = new MailSender();
+
+    @Override
+    public void notificarAlta(Grupo grupo, Alumno alumno) {
+        mailSender.send(alumno.getEmail(), "Bienvenido al grupo!");
+    }
+
+    @Override
+    public void notificarBaja(Grupo grupo, Alumno alumno) {
+        mailSender.send(grupo.getEmails(), "Baja Integrante", "Se ha retirado" + integrante.getNombre())
+    }
+    
+    @Override
+    notificarCierre(grupo, alumno){
+    new MailSender().send(grupo.getEmails(), "Se ha cerrado el grupo")
+    }
+
+}
+
+// librerias externas
+class GuitabSDK { 
+    void addMember(String repoName, String email) { } 
+    void removeMember(String repoName, String email) { } 
+}
+class MailSender { 
+    void send(String to, String body) { } 
+}
+
+
+// ENTREGAS
+public class Asignacion{
+    Titulo titulo;
+    List<Entrega> entregas;
+    Entrega entregaActual;
+
+    void avanzarEntrega{
+        this.entregaActual = this.entregas[this.entregas.indexOf(this.entregaActual) + 1]
+    }
+}
+
+public class Entrega{
+    String url;
+}
+
+public enum Titulo{
+    TRABAJO_PRACTICO, ACTIVIDAD_DE_CLASE
+}
+
+public class RepositorioAsignaciones{
+    List<Asignacion> asignaciones
+
+    void distribuirEntregas{
+        Curso.getinstance().getGruposCerrados().forEach(g -> this.habilitarEntregas(g))
+    }
+
+    // este es el metodo que va a correr el cron
+    void habilitarEntregas(grupo){
+    this.asignaciones.forEach(a -> {
+    grupo.habilitarEntrega(a.getEntregaActual())
+    a.avanzarEntrega()})
+    }
+}
+
+// MAIN para crontab
+public class HabilitadorEntregas {
+    public static void main(String[] args) {
+        RepositorioAsignaciones repo = new RepositorioAsignaciones();
+        
+        repo.distribuirEntregas();
+    }
+}
+// cron: * * */1 * * java -jar /home/user/app.jar app.main.HabilitadorEntregas --> semanalmente
