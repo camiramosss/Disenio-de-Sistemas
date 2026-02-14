@@ -8,6 +8,9 @@
 // --- ganancias de un determinado dia
 
 // Prendas
+
+import java.util.List;
+
 private class Prenda {
     private int precioBase;
     private Estado estado;
@@ -1063,6 +1066,8 @@ public class ActualizadorAlertas {
 
 
 //-------------------------------------PARCIALES-------------------------------------
+
+// ------------------------------------NOODLE
 // https://docs.google.com/document/d/1-Qpv38kB29lNuzIi88TkTg4LGbO_iNijoVesZyvG5wM/edit?usp=sharing
 
 public class Alumno {
@@ -1288,3 +1293,164 @@ public class HabilitadorEntregas {
     }
 }
 // cron: * * */1 * * java -jar /home/user/app.jar app.main.HabilitadorEntregas --> semanalmente
+
+
+//-------------------------------------PARTE 4 DE LIVRESTREAM (chat gpt)
+// ---- Requerimiento 1
+class Usuario {
+    SistemaNotificacion sistemaNotificacion;
+    donar(Donacion donacion, Transmision transmision){
+        // y aplico la logica de la donacion
+        donacion.donarSegunTipo(transmision)
+    }
+    void notificarInicio(Canal canal) {
+        this.sistemaNotificacion.enviarNotificacion(this);
+    }
+}
+
+abstract class Donacion {
+    int costoBase;
+    void donarSegunTipo(Transmision transmision);
+    int comision();
+    int costoAgregado();
+
+    // TEMPLATE METHOD con costoAgregado y comision
+    int recaudacionNeta(){
+        return this.costoBase + this.costoAgregado - this.comision();
+    }
+}
+
+class DonacionDirecta extends Donacion {
+    String mensaje;
+
+    void donarSegunTipo(Transmision transmision){
+        transmision.recibirDinero(this.dinero)
+        transmision.recibirMensaje(this.mensaje)
+    }
+
+    int costoAgregado() {
+        return 0;
+    }
+    int comision (){
+        return this.costoAgregado() * 0.05;
+    }
+}
+
+class SuperMensaje extends Donacion {
+    int segundos;
+    String mensaje;
+
+    int costoAgregado(){
+        return this.segundos * 10;
+    }
+    int comision(){
+        return this.costoAgregado() * 0.1;
+    }
+}
+
+class LLuviaSuscripciones extends Donacion {
+    void donarSegunTipo(Transmision transmision){
+        transmision.viewers.getRandom(5).forEach(viewer -> viewer.aceptarSuscripcion())
+    }
+
+    int costoAgregado(){
+        return 0;
+    }
+    int comision(){
+        return 0;
+    }
+}
+
+class Transmision {
+    List<Donacion> donaciones;
+    List<Moderacion> moderaciones;
+
+    List<Donacion> listarDonaciones(){
+        return this.donaciones;
+    }
+    Int totalRecaudado(){
+        return this.donaciones.forEach(donacion -> donacion.recaudacionNeta()).sum()
+    }
+}
+
+
+// ---- Requerimiento 2
+class SistemaNotificacion {
+    enviarNotificacion()
+}
+
+// planteo OBSEVER para el canal --> canal: observado, usuarios: observadores
+class Canal{
+    List<Usuario> suscriptores;
+
+    void iniciarTransmision(){
+        Transmision transmision = new Transmision();
+        this.suscriptores.forEach(suscriptor -> suscriptor.notificarInicio(this))
+    }
+}
+
+// nuestra INTERFAZ SALIENTE para enviar notificaciones
+interface SistemaNotificacion {
+    void enviarNotificacion(Usuario usuario);
+}
+
+// cada uno de estos hace de ADAPTER --> transforma el metodo de los sdk en valores que nos sirvan, ademas se pueden agregar/cambiar facilmente
+class Email implements SistemaNotificacion {
+    EmailSDK emailSDK = new EmailSDK();
+    @Override
+    void enviarNotificacion(Usuario usuario){
+        emailSDK.sendEmail(usuario.getEmail(), "¡Hola! Se ha iniciado una nueva transmisión en el canal que estas suscripto");
+    }
+}
+
+class Push implements SistemaNotificacion {
+    PushSDK pushSDK = new PushSDK();
+    @Override
+    void enviarNotificacion(Usuario usuario){
+        pushSDK.sendPush(usuario.getPushToken(), "¡Hola! Se ha iniciado una nueva transmisión en el canal que estas suscripto");
+    }
+}
+
+class Discord implements SistemaNotificacion {
+    DiscordSDK discordSDK = new DiscordSDK();
+    @Override
+    void enviarNotificacion(Usuario usuario){
+        discordSDK.sendMessage(usuario.getDiscordId(), "¡Hola! Se ha iniciado una nueva transmisión en el canal que estas suscripto");
+    }
+}
+
+// ---- Requerimiento 3
+interface Moderacion {
+    void moderar(Transmision transmision);
+}
+
+class ModoSuscriptores implements Moderacion {
+    @Override
+    transmision.viewers.forEach(viewer -> {
+        if(!viewer.esSuscriptor()){
+            transmision.moderaciones.add(new BloquearChat(viewer))
+            }
+        }
+    )
+}
+
+class BloquearChat implements Moderacion {
+    Usuario viewer;
+    @Override
+    void moderar(Transmision transmision){
+        transmision.chat.remove(this.viewer)
+    }
+}
+
+// por ej, si quiero listar las donaciones diariamente a las 8am:
+public class ListadorDeDonaciones {
+    public static void main(String[] args) {
+        // si paso la transmision asi, se crearia una transmision sin datos en memoria
+        Transmision transmision = new Transmision();
+        // por lo que deberia tener un repositorio de trasmisiones para ir acumulando las diarias
+        RepositorioTrabsmisiones repo = new RepositorioTransmisiones();
+        repo.transmisiones.forEach(transmision -> transmision.listarDonaciones());
+    }
+}
+
+// en un cron: 0 8 * * * java -jar /home/user/app app.main().ListadorDeDonaciones
