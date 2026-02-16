@@ -32,7 +32,7 @@ interface Estado { // --> STRATEGY METHOD
 
 private class Nueva implements Estado {
     public Double precioFinal(Double precioBase) {
-        return precioBase; // no modifica el precioBase
+        return precioBase // no modifica el precioBase
     }
 }
 
@@ -1045,6 +1045,7 @@ public class QueMePongoApp{
 // pero como quiero que una tarea se ejecute diariamente, y otra cada 30 min --> debo hacer 2 main
 public class GeneradorSugerencias {
     public static void main(String[] args) {
+        // el repo puede ser singleton --> llamaria a su intancia
         RepositorioUsuarios repo = new RepositorioUsuarios();
         AsesorImagen asesorImagen = new AsesorImagen();
         
@@ -1295,7 +1296,7 @@ public class HabilitadorEntregas {
 // cron: * * */1 * * java -jar /home/user/app.jar app.main.HabilitadorEntregas --> semanalmente
 
 
-//-------------------------------------PARTE 4 DE LIVRESTREAM (chat gpt)
+//-------------------------------------LIVRESTREAM PARTE 4 (simulacion de gemini)
 // ---- Requerimiento 1
 class Usuario {
     SistemaNotificacion sistemaNotificacion;
@@ -1421,7 +1422,7 @@ class Discord implements SistemaNotificacion {
 
 // ---- Requerimiento 3
 interface Moderacion {
-    void moderar(Transmision transmision);
+    void aplicar(Transmision transmision);
 }
 
 class ModoSuscriptores implements Moderacion {
@@ -1437,7 +1438,7 @@ class ModoSuscriptores implements Moderacion {
 class BloquearChat implements Moderacion {
     Usuario viewer;
     @Override
-    void moderar(Transmision transmision){
+    void aplicar(Transmision transmision){
         transmision.chat.remove(this.viewer)
     }
 }
@@ -1454,3 +1455,125 @@ public class ListadorDeDonaciones {
 }
 
 // en un cron: 0 8 * * * java -jar /home/user/app app.main().ListadorDeDonaciones
+
+
+// ------------------------------------LIVRESTREAM PARTE 2
+// supongo que las moderaciones son solo de una transmision, cuando termina, se resetean
+// si fuera al reves, la lista de moderaciones deberian estar en el canal
+class Transmision{
+    Canal canal;
+    List<Usuario> viewers
+    List<Moderacion> moderaciones
+
+    List<Moderacion> listarModeraciones(){
+        return this.moderaciones
+    }
+
+    void aplicarModeracion(Usuario viewer, Moderacion moderacion){
+        // se podria hacer factory? --> creo que no porque no tenemos una moderacion en especifico, aca podria ir cualquier tipo de moderacion (y cada una tiene sus parametros)
+        // tampoco se podria crear aca, porque se pasa como parametro : Moderacion moderacion = new Moderacion();
+        // quien crea la moderacion? algun componente manejadorModearciones? no creo tener que modelar al admin --> al crearse se debe instanciar con una norma asignada
+        moderaciones.add(moderacion);
+        moderacion.aplicar(viewer);
+    }
+
+    // para requerimiento 3:
+    void recibirMensaje(String mensaje){
+        chat.add(mensaje)
+        notificarViewers(mensaje)
+    }
+    void notificarViwers(String mensaje){
+        this.getViewers().forEach(viewer -> viewer.recibirMensaje(mensaje))
+    }
+
+    // para requerimiento 4:
+    void finalizarTransmision(){
+        notificarViewers("Transmision finalizada");
+    }
+}
+
+class Usuario{
+    // este atributo nos evita tener que pasar la transmision como parametro a la moderacion, solo le pasamos el viewer
+    // supongo que un viewer no puede tener mas de una transmision en curso
+    Transmision transmisionEnCurso;
+}
+
+abstract class Moderacion{
+    Norma normaIncumplida;
+
+    aplicar(Usuario viewer){
+    }
+    // aca me parece que sí o sí debo pasar la transmision, porque si un user se va a ver otra transmision con una moderacion puesta, la moderacion se le aplicaria a su transmision en curso actual
+    // o no, ya que cuando se modera toma la transmision del momento
+    deshacerModeracion(Usuario viewer){
+    }
+}
+
+class EliminacionMensaje extends Moderacion{
+    String mensaje;
+
+    void aplicar(viewer){
+        viewer.transmisionEnCurso.eliminarMensajeDeChat(this.getMensaje());
+    }
+}
+
+class Muteo extends Moderacion {    
+    Vigencia vigencia
+    Int tiempo
+    void aplicar(viewer){
+        // hay manera mas linda de hacerlo, como pidiendole el tiempo restante de vigencia a la vigencia, y mutear al user por ese tiempo, sin ifs
+        if(vigencia.sigueVigente){
+             this.mutearPeramenente(viewer);
+        }
+        else{
+             this.mutearPorTiempo(this.tiempo, viewer)
+        }
+    }
+}
+
+// como se repiten la caracteristica de Temporal/Permanente separamos la logica en una interfaz que dice si estaVigente
+// esto sirve por si en un futuro queremos agregar que otra moderacion sea temporal o permanente, simplemente lo conectamos a la interfa< tambien
+interface Vigencia{
+    boolean sigueVigente()
+}
+
+class VigenciaPermanente implements Vigencia{
+    sigueVigente(){
+        return true;
+    }
+}
+
+class VigenciaTemporal implements Vigencia{
+    LocalDate expiracion;
+    sigueVigente(){
+        return this.expiracion >= LocalDate.now()
+    }
+}
+
+// para requerimiento 4:
+class TerminadorDeTransmisiones {
+  public static void main(string[] args) {
+    RepositorioTransmisiones
+      .INSTANCE
+      .pendientesDeCierre()
+      .forEach(it => it.finalizarTransmision())
+  }
+}
+
+// singleton
+class RepositorioTransmisiones {
+    List<Transmision> transmisiones;
+    List<Transmision> pendientesDeCierre() {
+    this.transmisiones.filter(it => it.estaPendienteDeCierre())
+  }
+}
+
+class Transmision {
+  boolean estaPendienteDeCierre() {
+    return LocalDate.now() >= this.fechaDeInicio.plus(2, TimeUnit.HOURS)
+  }
+}
+
+// hay un cron que corre cada poco tiempo para chequear transmisiones pendientes de cierre
+// */5 * * * * java -jar /home/livrestream/terminadorDeTransmisiones.jar
+
