@@ -1,0 +1,176 @@
+// PRACTICA PARCIALES DISEÑO DE SISTEMAS (2DO PARCIAL)
+
+//-------------------------------------SWORDGO-------------------------------------
+// --- ORM ---
+// para no repetir logica de Id (aunque el @Entity siempre debe estar)
+
+import java.time.DateTimeException;
+
+@MappedSuperclass
+public abstract class PersistanceEntity{
+    @Id
+    @GeneratedValue
+    private int id;
+    // getter --> en parcial no hace falta I guess
+    public int getID() {return id;}
+}
+
+// Personaje --> clase principol
+// uso SET en las colecciones ya que no me importa el orden (y no permito duplicados para evitar ineficiencia en la DB)
+// para el *-* uso JoinTable (le pongo nombre a la tabla intermedia)
+// aclaro la FK de inventario (y el resto) para que hibernate no se confunda con la de armas/accesorios en uso, ya que todos son item (muchas relaciones a la misma clase --> @JoincColumn)
+// ademas el @JoinColumn evita la tabla intermedia innecesaria para las relaciones 1-*
+@Entity
+public class Personaje extends PersistanceEntity{
+    String nombre;
+    Int moneda;
+    
+    @Enumerated
+    TipoPersonajeEnum rol;
+
+    @ManyToMany
+    @JoinTable(name = ubicacionPorPersonaje)
+    Set <Ubicacion> ubicacionesVisitadas;
+
+    @OneToMany
+    @JoinColumn(name = inventario_id)
+    Set <Item> inventario;
+
+    @OneToMany
+    @JoinColumn(name = armasEnUso_id)
+    Set <Arma> armasEnUso;
+
+    @OneToMany
+    @JoinColumn(name = accesoriosEnUso_id)
+    Set <Accesorio> accesoriosEnUso;
+}
+
+// Item --> JOINED
+// tenemos atributos en común, pero otros no
+// debemos permitir polimorfismo, y en otros casos no (métodos propios)
+// no hay tantas tablas para que el joined nos baje la performance
+@Entity
+@Inheritance(strategy = InheritanceType.JOINED)
+public abstract class Item extends PersistanceEntity{
+    Int costo();
+    String nombre();
+}
+
+@Entity
+public class Regalo extends Item{
+    String fraseMotivacional;
+    @Override costo(); @Override nombre();
+}
+
+@Entity
+public class Accesorio extends Item{
+    @Override costo(); @Override nombre();
+}
+
+@Entity
+public class Arma extends Item{
+    Int defensa;
+    Int ataque;
+    @Override costo(); @Override nombre();
+}
+
+@Entity
+public class BolsaDeMonedas extends Item{
+    Int monedas;
+    @Override costo(); @Override nombre();
+}
+
+// TipoPersonaje --> ENUM (creo un enum que implemente la interfaz)
+// no es necesario persistirlo, vive en Personaje como @Enumerated
+// cada personaje no tiene atributos propios
+// tiene el mismo comportamiento todos
+// son stateless
+
+public enum TipoPersonajeEnum implements TipoPersonaje{
+    GUERRERO{
+        @Override comerciar(); @Override pelear(); @Override buscarItem();
+    }
+    HECHICERO{
+        @Override comerciar(); @Override pelear(); @Override buscarItem();
+    }
+    COMERCIANTE{
+        @Override comerciar(); @Override pelear(); @Override buscarItem();
+    }
+}
+
+// --- INTERFAZ REST ---
+
+
+//-------------------------------------QUEMEPONGO-------------------------------------
+@MappedSuperclass
+public class PersistanceEntity{
+    @Id @GeneratedValue
+    private int id;
+    // getter --> en parcial no hace falta I guess
+    public int getID() {return id;}
+}
+
+@Entity
+@Inheritance(strategy=SINGLE_TABLE)
+@DiscriminatorColumn(name=tipoEvento, type=String)
+public abstract class Evento{
+    @ManyToOne //un user puede tener varios eventos
+    @JoincColumn(name=usuario_id)
+    Usuario usuario;
+    private Date inicio;
+    private Date fin;
+    @Embedded //la ciudad no tiene comportamiento
+    private String ciudad;
+}
+
+@Entity
+@DiscriminatorValue(value="Unico")
+public class EventoUnico extends Evento{
+    @Override ocurreAproximadamente
+}
+
+@Entity
+@DiscriminatorValue(value="Recurrente")
+public class EventoRecurrente extends Evento{
+    @Enumerated
+    Recurrencia recurrencia;
+    @Override ocurreAproximadamente
+}
+
+@Embeddable
+public class Ciudad{
+    private String key;
+}
+
+public enum Recurrencia implements Recurrencia{ // ya que cada subtipo no tiene atributos propios ni metodos distintos, lo transformo en enum
+    SEMANAL{
+        @Override proximaOcurrencia ...
+    }
+    MENSUAL{
+        @Override proximaOcurrencia ...
+    }
+}
+
+@Entity
+public class Usuario{
+@OneToMany
+@JoincColumn(name=usuario_id)
+Set <Prenda> guardarropas;
+}
+
+@Entity
+public class Prenda{
+    private String descripcion;
+    @Enumerated
+    private String categoria;
+    @EllementCollection //en este caso el color sí tiene identidad (nombre y codigo)
+    List <Color> colores;
+}
+
+@Embeddable
+public class Color{
+    private String descricpion;
+    private String codigoHexa;
+}
+
+// sugerencia no se persiste = es el resultado de un cálculo --> objeto efimero
