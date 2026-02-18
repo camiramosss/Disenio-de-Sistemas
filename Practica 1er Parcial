@@ -1596,24 +1596,32 @@ class Perfil{
         // .....
     }
 
-    // constructor opcional para la descripcion libre
-    // la ui se encarga de habilitar la opcion del campo opcional para la descripcion, nosotros lo modelamos
-    // pd: nunca dice que debe ser obligatoria si su genero es no binario
-    Perfil perfil(nombre, edad, url, altura, peso, genero, descripcion){
-        this.nombre = nombre;
-        // .....
-        this.descipcion = descripcion
-    }
-
-    // setters para construir la prenda
+    // setters para construir el perfil
     void setNombre(String nombre){
         this.nombre = nombre;
     }
     // ...
 }
 
-enum Genero{
-    HOMBRECIS, MUJERCIS, HOMBRETRANS, MUJERTRANS, NOBINARIE
+// Enum para los tipos base
+enum TipoGenero {
+    HOMBRE_CIS, MUJER_CIS, HOMBRE_TRANS, MUJER_TRANS, NO_BINARIE
+}
+
+// Value Object
+class Genero {
+    private TipoGenero tipo;
+    private String descripcion;
+
+    // constructor: obligamos a validar al crear
+    // esta logica debe ir aca para no ensuciar el perfil
+    public Genero(TipoGenero tipo, String descripcion) {
+        if (tipo == TipoGenero.NO_BINARIE && (descripcion == null || descripcion.isEmpty())) {
+            throw new RuntimeException("El género No Binario requiere una descripción obligatoria.");
+        }
+        this.tipo = tipo;
+        this.descripcion = descripcion;
+    }
 }
 
 // FOTOS
