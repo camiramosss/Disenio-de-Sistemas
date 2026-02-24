@@ -351,3 +351,117 @@ class Estadistica{
     int likes;
     int dislikes;
 }
+
+
+//-------------------------------------RECUPERATORIO-------------------------------------
+abstract class PersistanceEntity{
+    @Id @GeneratedValue
+    int id;
+}
+
+// uso estrategia JOINED para mapeo de herencia porque
+// - cada clase tiene una serie de atributos propios (bastantes) --> podria ser table per class pero debemos priorizar las consultas polimorficas
+// - comparten el atributo numero
+// - deben cumplir el polimorfismo ya que se pide saber los asientos libres de un vuelo, para esto necesitara consultar a ambos tipos (no elegimos single table porque quedarian muchos campos null, aunque tendria mayor performance)
+// - y en otros casos no deben cumplirlo(?)
+
+// aca la opcion mas correcta hubiera sido un SINGLE_TABLE dado las consultas polimorficas --> se deben priorizar
+@Entity
+@Inheritance(strategy = InheritanceType.JOINED)
+abstract class Asiento extends PersistanceEntity{
+    int numero
+    // debe ser list porque tiene que mantener el orden (para que quede disponible para el proximo)
+    @ManyToMany
+    @JoinTable(name = AsientoXPasajero)
+    List<Pasajero> enEspera
+    @OneToOne
+    @JoincColumn(name = id_Pasajero)
+    Pasajero asignado
+}
+
+@Entity
+@Table('Primera_Clase') // se puede poner en cada tabla para agregarle nombre --> extra
+class PrimeraClase extends Asiento{
+    pulgadasTv
+    tipoComando
+    masajeador
+    comidaGourmet
+}
+
+@Entity
+@Table('Turista')
+class Turista extends Asiento{
+    cubreCabeza
+    almohada
+    bolsaVomital
+}
+
+@Entity
+@Table('Pasajero')
+class Pasajero extends PersistanceEntity{
+    nombre
+    dni
+    edad
+    sexo
+    @ManyToOne
+    @JoinColumn(name=id_tipo)
+    TipoPasajero tipo
+}
+
+// paso interfaz a abstract class
+// estrategia de mapeo de herecia: SINGLE_TABLE ya que:
+// ya que tenemos pocos atributos por separado en cada clase --> por lo que tendriamos pocos campos null (ademas tenemos solo 2 subclases)
+// sirve para una consulta rapida al tener que buscar el precio de un asiento en base al tipo de pasajero
+@Entity
+@Inheritance(strategy = InheritanceType.SINGLE_TABLE)
+@DiscriminatorColumn(name= tipo, type = String)
+abstract class TipoPasajero extends PersistanceEntity{
+}
+
+@Entity
+@DiscriminatorValue(value= "normal")
+class Normal extends TipoPasajero{
+    @Enumerated
+    Categoria categoria
+}
+
+@Entity
+class Frecuente extends TipoPasajero{
+    nroPasajeroFrecuente
+}
+// PD: en esta desicion del tipo de pasajero, lo mas correcto hubiera sido hacer un enum (con comportamiento) ya que el tipo de pasajero es stateless
+
+// no se persiste, vive como enumerated en normal
+enum Categoria{
+    A,B,C
+}
+
+@Entity
+class Viaje extends PersistanceEntity{
+    @ManyToMany
+    @JoinTable(name = "AsientoXViaje",
+               JoinColumn = @JoinColumn(name= id_viaje),
+               InverseJoinColumn = @JoinColumn(name = id_asiento))
+    List<Asiento> asientos
+    @ManyToOne
+    @JoinColumn(id_lugar)
+    Lugar destino
+    @ManyToOne(id_lugar)
+    Lugar origen
+}
+
+// embeddable porque es value object
+// 2 posiciones con la misma latitud y longitud representan a la misma posicion
+// no existe por si mismo --> depende del lugar
+@Embeddable
+class Posicion{
+    latitud
+    longitud
+}
+
+@Entity
+class Lugar extends PersistanceEntity{
+    nombre, descripcion //...
+    @Embedded
+    Posicion posicion
+}
